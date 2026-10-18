@@ -190,6 +190,38 @@ function removeTaskFromSheet_(sheet, taskId) {
 /**
  * Handle add, update, upsert and delete requests.
  */
+/**
+ * Apply one validated task operation to the active/completed sheets.
+ */
+function applyTaskOperation_(activeSheet, completedSheet, action, task) {
+  if (action === 'delete') {
+    const deletedFromTasks = removeTaskFromSheet_(activeSheet, task.id);
+    const deletedFromCompleted = removeTaskFromSheet_(completedSheet, task.id);
+    return {
+      action: 'delete',
+      id: String(task.id),
+      deleted: deletedFromTasks || deletedFromCompleted
+    };
+  }
+
+  const isCompleted =
+    String(task.status || '').trim().toLowerCase() === 'done';
+
+  if (isCompleted) {
+    saveTaskToSheet_(completedSheet, task);
+    removeTaskFromSheet_(activeSheet, task.id);
+    return { action: 'complete', id: String(task.id) };
+  }
+
+  saveTaskToSheet_(activeSheet, task);
+  removeTaskFromSheet_(completedSheet, task.id);
+  return { action: 'active', id: String(task.id) };
+}
+
+/**
+ * Handle single add/update/delete requests and batched operations.
+ * Batching keeps many pending changes to one lock acquisition.
+ */
 function doPost(e) {
   const lock = LockService.getScriptLock();
   let lockAcquired = false;
@@ -200,68 +232,55 @@ function doPost(e) {
     }
 
     const data = JSON.parse(e.postData.contents);
-
     const expectedToken = getSecretToken_();
     if (!expectedToken || data.token !== expectedToken) {
       throw new Error('Unauthorized request.');
     }
 
-    const action = data.action;
-    const task = data.task || {};
+    const isBatch = data.action === 'batch';
+    let operations;
 
-    if (!task.id) {
-      throw new Error('Missing task ID.');
+    if (isBatch) {
+      if (!Array.isArray(data.operations) || data.operations.length < 1) {
+        throw new Error('Batch must contain at least one operation.');
+      }
+      if (data.operations.length > 50) {
+        throw new Error('Batch limit is 50 operations.');
+      }
+      operations = data.operations;
+    } else {
+      operations = [{ action: data.action, task: data.task || {} }];
     }
 
-    if (!['upsert', 'add', 'update', 'delete'].includes(action)) {
-      throw new Error('Unsupported action: ' + action);
-    }
+    const allowedActions = ['upsert', 'add', 'update', 'delete'];
+    operations.forEach(function(operation) {
+      if (!operation || !allowedActions.includes(operation.action)) {
+        throw new Error('Unsupported action: ' + (operation && operation.action));
+      }
+      if (!operation.task || !operation.task.id) {
+        throw new Error('Missing task ID.');
+      }
+    });
 
     lock.waitLock(10000);
     lockAcquired = true;
 
     const activeSheet = getTasksSheet_();
     const completedSheet = getCompletedTasksSheet_();
-
-    if (action === 'delete') {
-      const deletedFromTasks =
-        removeTaskFromSheet_(activeSheet, task.id);
-
-      const deletedFromCompleted =
-        removeTaskFromSheet_(completedSheet, task.id);
-
-      return json_({
-        ok: true,
-        action: 'delete',
-        id: String(task.id),
-        deleted: deletedFromTasks || deletedFromCompleted
-      });
-    }
-
-    const isCompleted =
-      String(task.status || '').trim().toLowerCase() === 'done';
-
-    if (isCompleted) {
-      // Save to Completed Tasks first; remove from Tasks after save succeeds.
-      saveTaskToSheet_(completedSheet, task);
-      removeTaskFromSheet_(activeSheet, task.id);
-
-      return json_({
-        ok: true,
-        action: 'complete',
-        id: String(task.id)
-      });
-    }
-
-    // Save to Tasks first; remove from Completed Tasks after save succeeds.
-    // This also supports reopening a completed task.
-    saveTaskToSheet_(activeSheet, task);
-    removeTaskFromSheet_(completedSheet, task.id);
+    const results = operations.map(function(operation) {
+      return applyTaskOperation_(
+        activeSheet,
+        completedSheet,
+        operation.action,
+        operation.task
+      );
+    });
 
     return json_({
       ok: true,
-      action: 'active',
-      id: String(task.id)
+      action: isBatch ? 'batch' : results[0].action,
+      processed: results.length,
+      results: results
     });
 
   } catch (err) {
@@ -413,60 +432,57 @@ function onEdit(e) {
 
   const editedRange = e.range;
   const sheet = editedRange.getSheet();
+  const currentName = sheet.getName();
+  if (currentName !== SHEET_NAME && currentName !== COMPLETED_SHEET_NAME) return;
 
-  // Only respond to edits in the active Tasks sheet.
-  if (sheet.getName() !== SHEET_NAME) return;
-
-  // Only respond when the edit intersects column D, excluding the header.
+  // Only react to edits intersecting the Progress/Status column (D).
   if (
     editedRange.getColumn() > 4 ||
     editedRange.getLastColumn() < 4 ||
     editedRange.getLastRow() < 2
-  ) {
-    return;
-  }
+  ) return;
 
   const lock = LockService.getScriptLock();
+  let lockAcquired = false;
 
   try {
     lock.waitLock(10000);
+    lockAcquired = true;
 
-    // Process every affected row, including multi-row pastes.
+    const activeSheet = getTasksSheet_();
+    const completedSheet = getCompletedTasksSheet_();
     const startRow = Math.max(2, editedRange.getRow());
     const endRow = editedRange.getLastRow();
 
+    // Work bottom-up so deleting rows does not shift rows not yet processed.
     for (let rowNum = endRow; rowNum >= startRow; rowNum--) {
-      const status = String(sheet.getRange(rowNum, 4).getDisplayValue())
-        .trim()
-        .toLowerCase();
-
-      if (status !== 'done') continue;
+      if (rowNum > sheet.getLastRow()) continue;
 
       const rowValues = sheet
         .getRange(rowNum, 1, 1, HEADERS.length)
         .getValues()[0];
-
       const taskId = String(rowValues[0] || '').trim();
       if (!taskId) continue;
 
-      const completedSheet = getCompletedTasksSheet_();
+      const status = String(rowValues[3] || '').trim().toLowerCase();
+      const shouldBeCompleted = status === 'done';
+      const targetSheet = shouldBeCompleted ? completedSheet : activeSheet;
 
-      // Avoid duplicate rows: update an existing matching ID,
-      // or append the row if it does not exist yet.
-      const existingRow = findTaskRow_(completedSheet, taskId);
+      if (targetSheet.getSheetId() === sheet.getSheetId()) continue;
 
+      const existingRow = findTaskRow_(targetSheet, taskId);
       if (existingRow !== -1) {
-        completedSheet
+        targetSheet
           .getRange(existingRow, 1, 1, HEADERS.length)
           .setValues([rowValues]);
       } else {
-        completedSheet.appendRow(rowValues);
+        targetSheet.appendRow(rowValues);
       }
 
-      // Remove from active sheet only after saving succeeds.
+      // Remove only after the destination row was saved successfully.
       sheet.deleteRow(rowNum);
     }
   } finally {
-    lock.releaseLock();
+    if (lockAcquired) lock.releaseLock();
   }
 }
