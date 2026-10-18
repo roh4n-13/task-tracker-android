@@ -10,6 +10,7 @@ const backend = fs.readFileSync('TaskTracker_GoogleAppsScript.gs', 'utf8');
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/gi)];
 if (!scripts.length) throw new Error('No inline app script found');
 new vm.Script(scripts[scripts.length - 1][1], { filename: 'index.html inline script' });
+new vm.Script(backend, { filename: 'TaskTracker_GoogleAppsScript.gs' });
 
 const checks = [
   ['Smart Dashboard', html.includes('Smart dashboard')],
