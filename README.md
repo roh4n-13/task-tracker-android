@@ -27,10 +27,13 @@ Ye app tasks ko manage karta hai aur optional Google Sheets sync support karta h
 
 ## 3. Sync aur deleted rows
 
-- Task add/edit/complete/delete karne par app sync queue mein change rakhta hai.
+- Task add/edit/complete/delete karne par app sync queue mein change rakhta hai. Same task ke multiple pending edits ko latest change se compact kiya jata hai.
+- Pending changes ek batch mein send hote hain; phir app ek complete snapshot read karke poore task data ko verify karta hai. Isse har task ke liye baar-baar 4 reads karne wala slow pattern hataya gaya hai.
 - Successful sync par app `Tasks` aur `Completed Tasks` dono ka combined snapshot read karta hai.
-- Sheet se manually delete ki gayi row next successful complete sync ke baad app se bhi remove honi chahiye.
-- Failed request ya incomplete snapshot valid data nahi maana jaata, isliye usse remote reconciliation nahi honi chahiye.
+- Sheet se manually delete ki gayi row next successful automatic snapshot refresh par app se bhi remove honi chahiye. App se delete ki gayi row dono Sheets tabs se remove honi chahiye.
+- Failed request ya incomplete snapshot valid data nahi maana jaata. Unverified local changes queue mein rehte hain aur remote snapshot apply karte waqt preserve hote hain.
+- Sheet mein status `Done` karne se task `Completed Tasks` mein move hota hai; completed task ko dobara non-Done status dene se `Tasks` mein wapas move hota hai.
+- **Background limitation:** Android app band/force-stop hone par WebView JavaScript polling nahi chalti. Automatic 20-second polling app open/visible hone par kaam karti hai; app dobara kholte hi sync trigger hota hai. Android background/closed-app sync is not promised by this version.
 - Pehli baar connect karne se pehle sheet aur phone dono ka backup rakhna achha hai.
 
 ## 4. APK download karna
@@ -77,6 +80,8 @@ Manual testing:
 - [ ] Dashboard counts saved tasks se match karte hain.
 - [ ] Add, edit, complete aur delete task kaam karta hai.
 - [ ] Google Sheets URL/token enter karke real connection verify hota hai.
+- [ ] Multiple pending edits sync in one batch and complete task fields match.
+- [ ] While the app is visible, manual Sheet edits/deletes appear after automatic refresh without pressing Sync now.
 - [ ] Sync ke baad sheet aur app ke tasks match karte hain.
 - [ ] `Tasks` ya `Completed Tasks` se row manually delete karke sync karne par row app se bhi gayab hoti hai.
 - [ ] One-tap daily report copy hoti hai.
@@ -90,7 +95,7 @@ Automated tests aur successful build real Google Sheet ya physical Android phone
 - **URL error:** full Web App URL paste karo, `/exec` ending check karo.
 - **Unauthorized / wrong token:** app ka token aur Script Properties ka `SECRET_TOKEN` exactly same hona chahiye.
 - **Google login page khul raha hai:** deployment access aur Web App settings check karo.
-- **Changes sync nahi hote:** internet, token, deployment version aur Apps Script execution errors check karo. App mein **Sync now** try karo.
+- **Changes sync nahi hote:** internet, token, deployment version aur Apps Script execution errors check karo. App ko open rakho for automatic refresh; issue diagnose karne ke liye **Sync now** bhi try kar sakte ho.
 - **Deleted row app mein dikh rahi hai:** successful sync complete hua ya nahi check karo; failed sync par local list ko blindly clear mat karo.
 - **Reminder nahi aata:** Android Settings → Apps → Rolling Task Tracker → Notifications enable karo. Battery saver/inexact alarms notification ko delay kar sakte hain.
 - **APK install block hota hai:** trusted build artifact use karo; Android ki unknown-app install permission check karo.
