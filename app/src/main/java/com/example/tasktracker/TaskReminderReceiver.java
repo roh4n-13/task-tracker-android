@@ -30,6 +30,7 @@ public class TaskReminderReceiver extends BroadcastReceiver {
     private static final int NOTIFICATION_ID = 1042;
 
     public static void scheduleDailyReminder(Context context) {
+        createNotificationChannel(context);
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager == null) return;
 
