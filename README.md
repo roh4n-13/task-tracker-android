@@ -1,67 +1,103 @@
-# Rolling Task Tracker Android
+# Rolling Task Tracker Android — Simple Hinglish Guide
 
-An Android WebView shell for the task tracker, with local-first storage and optional Google Sheets synchronization.
+Ye app tasks ko manage karta hai aur optional Google Sheets sync support karta hai. Android app ka UI `app/src/main/assets/index.html` mein hai.
 
-## Current structure
+## 1. App mein kya hai?
 
-- `app/src/main/assets/index.html`: task UI, local storage, dashboard, report generation, sync queue, and rule-based next actions.
-- `app/src/main/java/com/example/tasktracker/MainActivity.java`: WebView host and native bridge for clipboard and reminder-task snapshots.
-- `app/src/main/java/com/example/tasktracker/TaskReminderReceiver.java`: daily Android reminder notification.
-- `TaskTracker_GoogleAppsScript.gs`: versioned Apps Script backend. The actual deployment must be updated separately in the Apps Script editor.
-- `scripts/verify-app.mjs`: lightweight source/JavaScript syntax smoke check.
+- **Smart Dashboard:** app khulte hi dashboard; total, pending, completed, overdue, due-today aur in-progress tasks; Smart Next Action; upcoming deadlines; follow-ups aur blocked tasks.
+- **Task List:** add, edit, status update, delete, search, filters, parked/recurring/done views aur visualizations.
+- **One-tap Daily Report:** report button current saved task data se report banata hai aur clipboard mein copy karne ki koshish karta hai. Android app mein report WhatsApp mein paste/share kar sakte ho.
+- **Google Sheets Connect:** Apps Script Web App URL aur `SECRET_TOKEN` enter karke connection verify kar sakte ho.
+- **Offline-first:** local tasks device par save hote hain; pending changes internet aane par sync queue se bheje jaate hain.
+- **Daily reminder:** Android notification receiver pending/due work ke liye reminder schedule karta hai. Android version ke hisaab se notification permission enable karni pad sakti hai.
 
-## Features
+## 2. Google Sheet connect karna
 
-- Existing task list, filters, status updates, parked/recurring/done views, visualizations, and JSON backup are preserved.
-- Smart Dashboard highlights overdue deadlines, deadlines due today, follow-ups, blocked work, and rule-based next actions.
-- Daily report builds a copyable summary for WhatsApp.
-- Google Sheets changes are queued locally, retried, and checked by reading the server snapshot back.
-- When a full, valid Sheets snapshot is received, it becomes the current task list. Therefore a row manually deleted from either `Tasks` or `Completed Tasks` is removed from the app at the next successful sync. Failed or incomplete reads do not delete local data.
-- The app sends a daily Android notification around 9 AM for due/overdue deadlines, follow-ups, deliveries, and blocked tasks. Android may delay inexact alarms; notifications must be enabled for the app.
+1. Apni Google Sheet kholo.
+2. **Extensions → Apps Script** select karo.
+3. Repository ki `TaskTracker_GoogleAppsScript.gs` file ka code bound Apps Script project mein update karo. Existing project replace karne se pehle backup bana lena.
+4. Apps Script mein **Project Settings → Script Properties** kholo.
+5. Ek property add karo: **Property = `SECRET_TOKEN`**, **Value = apna naya strong token**. Token ko GitHub, README ya screenshots mein mat daalna.
+6. **Deploy → Manage deployments** kholo, Web App deployment edit karo aur **New version** deploy karo. Web App access ko apni security requirement ke mutabik set karo; public access dene se pehle risk samajh lo.
+7. Deployed Web App ka URL copy karo. URL `https://script.google.com/macros/s/.../exec` se end hona chahiye.
+8. App mein **Connect Google Sheets** kholo. URL aur wahi token enter karo jo Script Properties mein set kiya hai. **Connect & sync** dabao.
+9. Connection verify hone ke baad **Sync now** dabao aur tasks check karo.
 
-## Google Sheets setup and security
+**Note:** GitHub mein `.gs` file update karne se Google Apps Script automatically deploy nahi hota. Apps Script editor mein deployment manually update karna hota hai. URL/token app ke current device ke local storage mein save hote hain; token sensitive hai.
 
-**Important:** the old token was embedded in the public client source. Treat it as exposed and rotate it before relying on the integration.
+## 3. Sync aur deleted rows
 
-1. Open the bound Google Apps Script project from the spreadsheet.
-2. Replace the backend source with `TaskTracker_GoogleAppsScript.gs` from this repository.
-3. In Apps Script, open **Project Settings → Script Properties** and add a property named `SECRET_TOKEN`. Set a strong, unique value. Do not commit the value to GitHub.
-4. Save and update the existing Web App deployment to a **new version**. Keep access limited to the intended users where possible.
-5. Open the app, press **Connect Google Sheets**, confirm the Web App URL ending in `/exec`, and enter the new Script Properties token. The token is saved in this device's local app storage, not in source code.
-6. Press **Sync now** and confirm the status changes to Synced.
+- Task add/edit/complete/delete karne par app sync queue mein change rakhta hai.
+- Successful sync par app `Tasks` aur `Completed Tasks` dono ka combined snapshot read karta hai.
+- Sheet se manually delete ki gayi row next successful complete sync ke baad app se bhi remove honi chahiye.
+- Failed request ya incomplete snapshot valid data nahi maana jaata, isliye usse remote reconciliation nahi honi chahiye.
+- Pehli baar connect karne se pehle sheet aur phone dono ka backup rakhna achha hai.
 
-The Web App URL and token are still credentials. Do not share screenshots or backups containing them. Because a browser/WebView client cannot keep a token truly secret from its device owner, use deployment access restrictions appropriate for the spreadsheet.
+## 4. APK download karna
 
-## Build and verify
+1. GitHub repo kholo: https://github.com/roh4n-13/task-tracker-android
+2. **Actions → Build Task Tracker APK** kholo.
+3. Latest successful run select karo.
+4. Page ke neeche **Artifacts → TaskTracker-debug-APK** download karo.
+5. ZIP extract karo; andar `app-debug.apk` milega.
+6. APK phone mein bhejo, open karo, aur agar Android pooche toh us file manager/browser ke liye **Install unknown apps** allow karo. Install ke baad permission chaaho toh off kar dena.
 
-Requirements: Android Studio with Android SDK Platform 35, JDK 17+, and Gradle 8.9+ (or Android Studio's Gradle integration).
+Agar artifact nahi dikh raha, build successful nahi hua hoga ya artifact expire ho gaya hoga.
 
-Run the source smoke check:
+## 5. APK apne Windows laptop par build karna
 
-```bash
+Requirements: Android SDK Platform 35, JDK 17+, Git, aur Gradle/Android Studio setup.
+
+PowerShell mein repository folder ke andar:
+
+```powershell
 node scripts/verify-app.mjs
-```
-
-Build a debug APK:
-
-```bash
 gradle assembleDebug
 ```
 
-Expected APK path: `app/build/outputs/apk/debug/app-debug.apk`.
+APK yahan banega:
 
-GitHub Actions runs the smoke check and builds the debug APK on pushes to `main`. A branch build can be run manually from the Actions tab if the workflow is enabled for that branch.
+```text
+app\build\outputs\apk\debug\app-debug.apk
+```
 
-## Regression checklist
+Agar `gradle` command nahi milti, Android Studio install karke project open/sync karo. Is repository mein Gradle wrapper available na ho toh direct command tabhi chalegi jab Gradle installed ho.
 
-- Add, edit, delete, and change progress for a task.
-- Verify a task moved to Done remains in the Completed Tasks sheet and can be reopened.
-- Turn off internet, edit a task, restore internet, and verify the queued update syncs.
-- Delete an existing task row manually in Google Sheets, wait for the next sync or tap **Sync now**, and verify it disappears from the app.
-- Delete a row while an unrelated local change is pending; verify the pending local change is retained and the manually deleted row is removed after reconciliation.
-- Test a blocked task, overdue deadline, due follow-up, and delivery date.
-- Generate the daily report and paste it into WhatsApp.
-- Verify the daily notification on a device with notifications enabled.
-- Export a JSON backup and confirm it contains the task data.
+## 6. Tests aur checklist
 
-Automated source checks do not replace running the APK on a real Android device and verifying the deployed Apps Script against a test spreadsheet.
+Automated source check:
+
+```powershell
+node scripts/verify-app.mjs
+```
+
+Manual testing:
+
+- [ ] App open hote hi Smart Dashboard dikhta hai.
+- [ ] Dashboard counts saved tasks se match karte hain.
+- [ ] Add, edit, complete aur delete task kaam karta hai.
+- [ ] Google Sheets URL/token enter karke real connection verify hota hai.
+- [ ] Sync ke baad sheet aur app ke tasks match karte hain.
+- [ ] `Tasks` ya `Completed Tasks` se row manually delete karke sync karne par row app se bhi gayab hoti hai.
+- [ ] One-tap daily report copy hoti hai.
+- [ ] Notification permission enabled hone par reminder aata hai.
+- [ ] APK install hota hai aur phone par open hota hai.
+
+Automated tests aur successful build real Google Sheet ya physical Android phone testing ka replacement nahi hain. Live Sheet aur phone par test kiye bina unhe verified mat samjho.
+
+## 7. Troubleshooting
+
+- **URL error:** full Web App URL paste karo, `/exec` ending check karo.
+- **Unauthorized / wrong token:** app ka token aur Script Properties ka `SECRET_TOKEN` exactly same hona chahiye.
+- **Google login page khul raha hai:** deployment access aur Web App settings check karo.
+- **Changes sync nahi hote:** internet, token, deployment version aur Apps Script execution errors check karo. App mein **Sync now** try karo.
+- **Deleted row app mein dikh rahi hai:** successful sync complete hua ya nahi check karo; failed sync par local list ko blindly clear mat karo.
+- **Reminder nahi aata:** Android Settings → Apps → Rolling Task Tracker → Notifications enable karo. Battery saver/inexact alarms notification ko delay kar sakte hain.
+- **APK install block hota hai:** trusted build artifact use karo; Android ki unknown-app install permission check karo.
+
+## 8. Security
+
+- `SECRET_TOKEN` ko source code ya GitHub mein commit mat karo.
+- Agar token public ho gaya ho, Apps Script Script Properties mein token rotate karo aur app mein naya token save karo.
+- Web App URL aur token wale screenshots/backups share mat karo.
+- Real spreadsheet par testing se pehle backup bana lo.
