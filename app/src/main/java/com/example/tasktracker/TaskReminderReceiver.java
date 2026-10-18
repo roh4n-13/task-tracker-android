@@ -156,7 +156,7 @@ public class TaskReminderReceiver extends BroadcastReceiver {
         if (value == null) return "";
         String s = value.trim();
         if (s.matches("^\\d{4}-\\d{2}-\\d{2}.*")) return s.substring(0, 10);
-        String[] patterns = {"dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy"};
+        String[] patterns = {"dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy", "dd-MMM-yyyy", "d-MMM-yyyy", "dd MMM yyyy", "d MMM yyyy", "MMM d, yyyy"};
         for (String pattern : patterns) {
             try {
                 SimpleDateFormat format = new SimpleDateFormat(pattern, Locale.US);
