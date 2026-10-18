@@ -13,8 +13,13 @@ new vm.Script(scripts[scripts.length - 1][1], { filename: 'index.html inline scr
 new vm.Script(backend, { filename: 'TaskTracker_GoogleAppsScript.gs' });
 
 const checks = [
-  ['Smart Dashboard', html.includes('Smart dashboard')],
-  ['One-tap daily report', html.includes('function generateDailyReport()')],
+  ['Smart Dashboard', html.includes('Smart Dashboard') && html.includes("view='Dashboard'")],
+  ['Dashboard is the first view', html.includes("let tasks=load(),view='Dashboard'")],
+  ['Dashboard quick actions', html.includes('dashboardConnectSheets') && html.includes('dashboardDailyReport')],
+  ['Visible Google Sheets connection dialog', html.includes('id=\"sheetsModal\"') && html.includes('saveSheetsConnectionBtn')],
+  ['No hard-coded Apps Script deployment URL', !html.includes('AKfycbzVl84fwzuOXUPoZx4_QWVgect52Hng8mcmqikUs28Fhu7vBIaEgJdMoiFym1ids0PT')],
+  ['Complete snapshot count validation', html.includes('Number(data.count)!==data.tasks.length')],
+  ['One-tap daily report', html.includes('function generateDailyReport()') && html.includes('One-tap daily report')],
   ['Verified JSONP snapshot reads', html.includes('function readSheetsSnapshot()')],
   ['Persistent sync queue', html.includes('SYNC_QUEUE_KEY')],
   ['Sheet deletion reconciliation', html.includes('tasks=remoteTasks')],
@@ -24,6 +29,7 @@ const checks = [
   ['Reminder receiver registered', manifest.includes('.TaskReminderReceiver')],
   ['Script Properties token lookup', backend.includes("getScriptProperties().getProperty('SECRET_TOKEN')")],
   ['No old hard-coded token in backend', !backend.includes('Rohan_TaskTracker_2026_A7x9K2mP')],
+  ['Hinglish README connection instructions', fs.readFileSync('README.md', 'utf8').includes('Connect Google Sheets') && fs.readFileSync('README.md', 'utf8').includes('Simple Hinglish Guide')],
 ];
 
 let failed = false;
