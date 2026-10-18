@@ -4,6 +4,8 @@ name: Build Task Tracker APK
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify tracker source and JavaScript syntax
+        run: node scripts/verify-app.mjs
 
       - name: Build debug APK
         run: gradle assembleDebug
