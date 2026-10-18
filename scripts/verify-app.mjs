@@ -24,7 +24,7 @@ const checks = [
   ['Persistent sync queue', html.includes('SYNC_QUEUE_KEY')],
   ['Sheet deletion reconciliation preserves pending deletes', html.includes('pendingById') && html.includes("op.action!=='delete'")],
   ['Batched Google Sheets writes', html.includes("action:'batch',operations:operations.map")],
-  ['Queue coalescing prevents stale writes', html.includes('function compactQueue()') && html.includes('q.filter(op=>String(op.task&&op.task.id)!==String(task.id))')],
+  ['Queue coalescing prevents stale writes', html.includes('function compactQueue()') && html.includes('readQueue().filter(op=>String(op.task&&op.task.id)!==String(task.id))')],
   ['Full task snapshot verification', html.includes('function remoteMatchesTask(task,remote)')],
   ['Automatic 20-second foreground sync', html.includes(')},20000);')],
   ['Apps Script batch endpoint', backend.includes("data.action === 'batch'") && backend.includes('operations.length > 50')],
